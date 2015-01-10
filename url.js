@@ -9,7 +9,8 @@
   if (!scope.forceJURL) {
     try {
       var u = new URL('b', 'http://a');
-      hasWorkingUrl = u.href === 'http://a/b';
+      u.pathname = 'c%20d';
+      hasWorkingUrl = u.href === 'http://a/c%20d';
     } catch(e) {}
   }
 
@@ -557,9 +558,46 @@
       if ('#' == hash[0])
         hash = hash.slice(1);
       parse.call(this, hash, 'fragment');
+    },
+
+    get origin() {
+      var host;
+      if (this._isInvalid || !this._scheme) {
+        return '';
+      }
+      // javascript: Gecko returns String(""), WebKit/Blink String("null")
+      // Gecko throws error for "data://"
+      // data: Gecko returns "", Blink returns "data://", WebKit returns "null"
+      // Gecko returns String("") for file: mailto:
+      // WebKit/Blink returns String("SCHEME://") for file: mailto:
+      switch (this._scheme) {
+        case 'data':
+        case 'file':
+        case 'javascript':
+        case 'mailto':
+          return 'null';
+      }
+      host = this.host;
+      if (!host) {
+        return '';
+      }
+      return this._scheme + '://' + host;
     }
   };
 
+  // Copy over the static methods
+  var OriginalURL = scope.URL;
+  if (OriginalURL) {
+    jURL.createObjectURL = function(blob) {
+      // IE extension allows a second optional options argument.
+      // http://msdn.microsoft.com/en-us/library/ie/hh772302(v=vs.85).aspx
+      return OriginalURL.createObjectURL.apply(OriginalURL, arguments);
+    };
+    jURL.revokeObjectURL = function(url) {
+      OriginalURL.revokeObjectURL(url);
+    };
+  }
+
   scope.URL = jURL;
 
-})(window);
+})(this);
